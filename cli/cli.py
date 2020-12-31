@@ -17,6 +17,7 @@ import time
 from notifications.notifications import NotificationHandler, TIME_FORMAT
 from stores.amazon import Amazon
 from stores.bestbuy import BestBuyHandler
+from stores.asus import AsusStoreHandler
 from utils import selenium_utils
 from utils.logger import log
 from utils.version import check_version
@@ -233,9 +234,19 @@ def test_notifications(disable_sound):
     # Give the notifications a chance to get out before we quit
     time.sleep(5)
 
+@click.command()
+@click.option(
+    "--delay", type=float, default=3, help="Time to wait between checks for item[s]"
+)
+@notify_on_crash
+def asus(delay):
+    store = AsusStoreHandler(notification_handler=notification_handler)
+    store.run(delay=delay)
+
 
 signal(SIGINT, handler)
 
 main.add_command(amazon)
 main.add_command(bestbuy)
 main.add_command(test_notifications)
+main.add_command(asus)

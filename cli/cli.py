@@ -238,10 +238,15 @@ def test_notifications(disable_sound):
 
 @click.command()
 @click.option(
-    "--delay", type=float, default=3, help="Time to wait between checks for item[s]"
+    "--delay", type=float, default=25, help="Time to wait between checks for item[s]"
+)
+@click.option(
+    "--test",
+    is_flag=True,
+    help="Run the checkout flow, but do not actually purchase the item[s]",
 )
 @notify_on_crash
-def asus(delay):
+def asus(delay, test):
     credential_file = "config/asus_credentials.json"
     credit_card_file = "config/credit_card.json"
     credential_file_exists = os.path.exists(credential_file)
@@ -264,7 +269,7 @@ def asus(delay):
             encryption_pass = cpass
     else:
         encryption_pass = stdiomask.getpass(prompt="Encrypted file password: ", mask="*")
-    store = AsusStoreHandler(notification_handler=notification_handler, encryption_pass=encryption_pass)
+    store = AsusStoreHandler(notification_handler=notification_handler, encryption_pass=encryption_pass, test_mode=test)
     store.run(delay=delay)
 
 

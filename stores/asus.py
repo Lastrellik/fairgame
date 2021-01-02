@@ -22,6 +22,7 @@ ASUS_STORE_URL = "https://store.asus.com"
 ASUS_REALTIME_INVENTORY_URL = "https://store.asus.com/us/category/get_real_time_data"
 ASUS_ITEM_URL = "https://store.asus.com/us/item/{sm_id}"
 SHOPPING_CART_URL = "https://shop-us1.asus.com/AW000706/cart"
+ADD_TO_CART_URL = 'https://shop-us1.asus.com/AW000706/cart_api/set_sdata?callback=jQuery19105768661324897866_1609447575379&source=https%3A%2F%2Fstore.asus.com%2Fus%2Fitem%2F{sm_id}&send_data=%7B%22s%22%3A%22{sm_id}%22%2C%22t%22%3A%221%22%2C%22q%22%3A1%2C%22g%22%3A%5B%5D%2C%22p%22%3A%5B%5D%2C%22m%22%3A%5B%5D%2C%22c%22%3A%22%22%2C%22a%22%3A%22%22%2C%22item_source%22%3A%22%2F%2Fstore.asus.com%2Fus%2Fitem%2F{sm_id}%22%2C%22is_market_cross%22%3A%22%22%7D&ws_seq=AW000706&store=0&_=1609447575381'
 
 CONFIG_FILE_PATH = "config/asus_config.json"
 
@@ -47,9 +48,15 @@ class AsusStoreHandler(BaseStoreHandler):
         self,
         notification_handler,
         encryption_pass=None,
+        test_mode=False,
     ) -> None:
         super().__init__()
         self.notification_handler = notification_handler
+        self.test_mode = test_mode
+        if test_mode:
+            message = 'Starting Asus bot in test mode'
+            log.info(message)
+            self.notification_handler.send_notification(message)
         self.sm_list = []
         self.stock_checks = 0
         self.start_time = int(time.time())
@@ -104,24 +111,30 @@ class AsusStoreHandler(BaseStoreHandler):
                         f"scan... "
                     )
                 if self.check_stock(sm_id, sm_details):
+                    price = sm_details["market_info"]["price"]["final_price"]["price"]
+                    quantity = sm_details["market_info"]["quantity"]
+                    name = sm_details['market_info']['sm_seq']
                     url = ASUS_ITEM_URL.format(sm_id=sm_id)
-                    log.info(f'Item {sm_id} is available at url {url}')
+                    message = f'Item {name} has {quantity} in stock at price {price} at url {url}'
+                    log.info(message)
+                    self.notification_handler.send_notification(message)
                     self.add_item_to_cart(sm_id)
-                    self.checkout()
-                    log.debug(f"Removing {sm_id} from hunt list.")
-                    self.sm_list.remove(sm_id)
-                    self.notification_handler.send_notification(
-                        f"Found in-stock item at ASUS: {url}"
-                    )
+                    try:
+                        self.checkout(name)
+                        log.debug(f"Removing {sm_id} from hunt list.")
+                        self.sm_list.remove(sm_id)
+                    except Exception as e:
+                        message = f'An error occurred during checkout for item {name}: {str(e)}'
+                        self.sm_list.remove(sm_id)
+                        log.error(str(e))
+                        self.notification_handler.send_notification(message)
             time.sleep(delay)
 
     def add_item_to_cart(self, sm_id):
-        add_to_cart_url = f'https://shop-us1.asus.com/AW000706/cart_api/set_sdata?callback=jQuery19105768661324897866_1609447575379&source=https%3A%2F%2Fstore.asus.com%2Fus%2Fitem%2F{sm_id}&send_data=%7B%22s%22%3A%22{sm_id}%22%2C%22t%22%3A%221%22%2C%22q%22%3A1%2C%22g%22%3A%5B%5D%2C%22p%22%3A%5B%5D%2C%22m%22%3A%5B%5D%2C%22c%22%3A%22%22%2C%22a%22%3A%22%22%2C%22item_source%22%3A%22%2F%2Fstore.asus.com%2Fus%2Fitem%2F{sm_id}%22%2C%22is_market_cross%22%3A%22%22%7D&ws_seq=AW000706&store=0&_=1609447575381'
-        url = ASUS_ITEM_URL.format(sm_id=sm_id)
-        self.driver.get(add_to_cart_url)
+        self.driver.get(ADD_TO_CART_URL.format(sm_id=sm_id))
         log.info(f'Added item {sm_id} to cart')
 
-    def checkout(self):
+    def checkout(self, name):
         self.driver.get(SHOPPING_CART_URL)
         button_click_using_xpath(self.driver, '//button[contains(text(),"Checkout")]')
         #TODO add personal info and shipping info logic
@@ -131,8 +144,14 @@ class AsusStoreHandler(BaseStoreHandler):
         self.accept_terms_and_conditions()
         button_click_using_xpath(self.driver, '//*[@id="checkout-step__review"]/div[2]/div[4]/div[3]/a')
         self.enter_credit_card_details()
-        button_click_using_xpath(self.driver, '//*[@id="payment_details_lower"]/input[2]')
-        time.sleep(100000)
+        if not self.test_mode:
+            button_click_using_xpath(self.driver, '//*[@id="payment_details_lower"]/input[2]')
+            wait_for_element_by_xpath(self.driver, '//button[contains(text(), "View Order")]', time=60)
+            message = f'Checkout successful for item {name}!'
+            log.info(message)
+            self.notification_handler.send_notification(message)
+        else:
+            log.info('Skipping order completion because of test mode.')
 
     def set_billing_address(self):
         log.info('Setting billing address...')
@@ -285,6 +304,7 @@ class AsusStoreHandler(BaseStoreHandler):
         try:
             self.driver = webdriver.Chrome(executable_path=binary_path, options=options)
         except Exception as e:
+            self.notification_handler.send_notification('Fairgame has crashed')
             log.error(e)
             log.error(
                 "If you have a JSON warning above, try deleting your .profile-asus folder"

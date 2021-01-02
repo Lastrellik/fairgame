@@ -1,6 +1,8 @@
+import os
 from datetime import datetime
 from functools import wraps
 from signal import signal, SIGINT
+import stdiomask
 
 try:
     import click
@@ -240,7 +242,29 @@ def test_notifications(disable_sound):
 )
 @notify_on_crash
 def asus(delay):
-    store = AsusStoreHandler(notification_handler=notification_handler)
+    credential_file = "config/asus_credentials.json"
+    credit_card_file = "config/credit_card.json"
+    credential_file_exists = os.path.exists(credential_file)
+    credit_card_file_exists = os.path.exists(credit_card_file)
+    if not (credential_file_exists and credit_card_file_exists):
+        log.info("One or more encrypted files not found. Rebuilding encrypted files...")
+        if os.path.exists(credential_file):
+            os.remove(credential_file)
+            log.info(f"removed {credential_file}")
+        if os.path.exists(credit_card_file):
+            os.remove(credit_card_file)
+            log.info(f"removed {credit_card_file}")
+        log.info("Create a password for the encrypted credit card and credential files: ")
+        cpass = stdiomask.getpass(prompt="Encrypted file password: ", mask="*")
+        vpass = stdiomask.getpass(prompt="Verify encrypted file password: ", mask="*")
+        if cpass != vpass:
+            print("Password and verify password do not match.")
+            exit(0)
+        else:
+            encryption_pass = cpass
+    else:
+        encryption_pass = stdiomask.getpass(prompt="Encrypted file password: ", mask="*")
+    store = AsusStoreHandler(notification_handler=notification_handler, encryption_pass=encryption_pass)
     store.run(delay=delay)
 
 

@@ -42,23 +42,29 @@ def decrypt(ct, password):
         exit(0)
 
 
-def create_encrypted_config(data, file_path):
+def create_encrypted_config(data, file_path, encryption_pass):
     """Creates an encrypted credential file if none exists.  Stores results in a
     file in the root directory."""
     if isinstance(data, dict):
         data = json.dumps(data)
     payload = bytes(data, "utf-8")
-    log.info("Create a password for the credential file")
-    cpass = stdiomask.getpass(prompt="Credential file password: ", mask="*")
-    vpass = stdiomask.getpass(prompt="Verify credential file password: ", mask="*")
-    if cpass == vpass:
-        result = encrypt(payload, cpass)
+    if not encryption_pass:
+        log.info("Create a password for the credential file")
+        cpass = stdiomask.getpass(prompt="Credential file password: ", mask="*")
+        vpass = stdiomask.getpass(prompt="Verify credential file password: ", mask="*")
+        if cpass == vpass:
+            result = encrypt(payload, cpass)
+            with open(file_path, "w") as f:
+                f.write(result)
+            log.info("Sensitive data safely stored.")
+        else:
+            print("Password and verify password do not match.")
+            exit(0)
+    else:
+        result = encrypt(payload, encryption_pass)
         with open(file_path, "w") as f:
             f.write(result)
-        log.info("Credentials safely stored.")
-    else:
-        print("Password and verify password do not match.")
-        exit(0)
+        log.info("Sensitive data safely stored.")
 
 
 def load_encrypted_config(config_path, encrypted_pass=None):
@@ -81,13 +87,58 @@ def load_encrypted_config(config_path, encrypted_pass=None):
             log.info(
                 "Your configuration file is unencrypted, it will now be encrypted."
             )
-            create_encrypted_config(data, config_path)
+            create_encrypted_config(data, config_path, encrypted_pass)
             return json.loads(data)
     except Exception as e:
         log.error(e)
         log.error(
             f"Failed to decrypt the credential file. If you have forgotten the password, delete {config_path} and rerun the bot"
         )
+
+def await_credential_input(website):
+    username = input(f"{website} login ID: ")
+    password = stdiomask.getpass(prompt=f"{website} password: ")
+    return {
+        "username": username,
+        "password": password,
+    }
+
+def get_credentials_from_file(website, credential_file_path, encryption_pass):
+    credential = None
+    if os.path.exists(credential_file_path):
+        credential = load_encrypted_config(credential_file_path, encryption_pass)
+    else:
+        log.info("No credential file found, let's make one")
+        log.info("NOTE: DO NOT SAVE YOUR CREDENTIALS IN CHROME, CLICK NEVER!")
+        credential = await_credential_input(website)
+        create_encrypted_config(credential, credential_file_path, encryption_pass)
+    return credential["username"], credential["password"]
+
+def await_credit_card_input():
+    card_type = input("Credit card type (Visa, Mastercard, Amex, Discover):")
+    card_number = input("Credit card number (no spaces or dashes):")
+    card_expiration_month = input("Credit card expiration month (MM):")
+    card_expiration_year = input("Credit card expiration year (YYYY):")
+    card_ccv = input("Credit card ccv number:")
+    return {
+        'card_type': card_type,
+        'card_number': card_number,
+        'card_expiration_month': card_expiration_month,
+        'card_expiration_year': card_expiration_year,
+        'card_ccv': card_ccv
+    }
+
+def get_credit_card_data_from_file(credit_card_file_path, encryption_pass):
+    credit_card = None
+    if os.path.exists(credit_card_file_path):
+        log.info('Found credit card file. Decrypting....')
+        credit_card = load_encrypted_config(credit_card_file_path, encryption_pass)
+    else:
+        log.info("No credit card file found, let's make one")
+        log.info("Note: Your credit card information is stored locally in an encrypted file and never sent anywhere outside of the website accepting the credit card information.")
+        credit_card = await_credit_card_input()
+        create_encrypted_config(credit_card, credit_card_file_path, encryption_pass)
+    return credit_card
 
 
 # def main():

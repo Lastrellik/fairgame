@@ -20,7 +20,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from utils import discord_presence as presence
 from utils.debugger import debug
-from utils.encryption import create_encrypted_config, load_encrypted_config
+from utils.encryption import get_credentials_from_file
 from utils.logger import log
 from utils.selenium_utils import options, enable_headless
 
@@ -244,17 +244,7 @@ class Amazon:
             except:
                 raise
 
-        if os.path.exists(CREDENTIAL_FILE):
-            credential = load_encrypted_config(CREDENTIAL_FILE, encryption_pass)
-            self.username = credential["username"]
-            self.password = credential["password"]
-        else:
-            log.info("No credential file found, let's make one")
-            log.info("NOTE: DO NOT SAVE YOUR CREDENTIALS IN CHROME, CLICK NEVER!")
-            credential = self.await_credential_input()
-            create_encrypted_config(credential, CREDENTIAL_FILE)
-            self.username = credential["username"]
-            self.password = credential["password"]
+        self.username, self.password = get_credentials_from_file('Amazon', CREDENTIAL_FILE, encryption_pass)
 
         if os.path.exists(AUTOBUY_CONFIG_PATH):
             with open(AUTOBUY_CONFIG_PATH) as json_file:
@@ -286,15 +276,6 @@ class Amazon:
 
         for key in AMAZON_URLS.keys():
             AMAZON_URLS[key] = AMAZON_URLS[key].format(domain=self.amazon_website)
-
-    @staticmethod
-    def await_credential_input():
-        username = input("Amazon login ID: ")
-        password = stdiomask.getpass(prompt="Amazon Password: ")
-        return {
-            "username": username,
-            "password": password,
-        }
 
     def run(self, delay=DEFAULT_REFRESH_DELAY, test=False):
         self.testing = test

@@ -9,10 +9,12 @@
 .idea/
 .profile
 .profile-amz*
+.profile-asus*
 .vscode/
 /config/*_credentials.json
 /config/apprise.conf
 /config/apprise_config.json
+/config/credit_card.json
 Pipfile.lock
 __pycache__/
 build/

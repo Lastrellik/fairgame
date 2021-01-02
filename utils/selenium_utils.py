@@ -4,9 +4,11 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support.ui import Select
 from selenium.webdriver.remote.remote_connection import LOGGER as selenium_logger
 from urllib3.connectionpool import log as urllib_logger
 from logging import WARNING as logging_WARNING
+import time
 
 options = Options()
 options.add_experimental_option(
@@ -95,12 +97,19 @@ def button_click_using_xpath(d, xpath):
     """
     Uses webdriver(d) to click a button using an XPath(xpath)
     """
-    button_menu = WebDriverWait(d, 10).until(
+    button_menu = WebDriverWait(d, 30).until(
         ec.element_to_be_clickable((By.XPATH, xpath))
     )
     action = ActionChains(d)
-    action.move_to_element(button_menu).pause(1).click().perform()
+    action.move_to_element(button_menu).perform()
+    action.move_to_element(button_menu).click().perform()
 
+def button_click_using_id(d, id):
+    button_menu = WebDriverWait(d, 10).until(
+        ec.element_to_be_clickable((By.ID, id))
+    )
+    action = ActionChains(d)
+    action.move_to_element(button_menu).click().perform()
 
 def field_send_keys(d, field, keys):
     """
@@ -130,6 +139,32 @@ def add_cookies_to_session_from_driver(driver, session):
         )
         for cookie in cookies
     ]
+
+def send_keys_by_xpath(d, xpath, keys):
+    wait_for_element_by_xpath(d, xpath)
+    field = d.find_element_by_xpath(xpath)
+    field.clear()
+    field.send_keys(keys)
+
+def check_exists_by_xpath(d, xpath):
+    try:
+        d.find_element_by_xpath(xpath)
+    except:
+        return False
+    return True
+
+def click_by_xpath(d, xpath):
+    wait_for_element_by_xpath(d, xpath)
+    elem = d.find_element_by_xpath(xpath)
+    elem.click()
+
+def wait_for_element_to_disappear(d, xpath):
+    WebDriverWait(d, 60).until_not(ec.presence_of_element_located((By.XPATH, xpath)))
+
+def select_input_by_id(d, id, value):
+    wait_for_element(d, id)
+    select = Select(d.find_element_by_id(id))
+    select.select_by_value(value)
 
 
 def enable_headless():
